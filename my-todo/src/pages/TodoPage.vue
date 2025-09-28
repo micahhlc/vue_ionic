@@ -23,29 +23,44 @@
         >
       </ion-item>
 
+      <!-- Pull to refresh -->
+      <ion-refresher slot="fixed" @ionRefresh="refreshTodos">
+        <ion-refresher-content
+          pulling-text="Pull to refresh"
+        ></ion-refresher-content>
+      </ion-refresher>
+
       <!-- List of tasks -->
       <ion-list>
-        <ion-item v-for="t in todos" :key="t.id">
-          <ion-checkbox
-            slot="start"
-            v-model="t.done"
-            @ionChange="toggleDone(t)"
-          ></ion-checkbox>
-          <ion-label
-            :style="{ textDecoration: t.done ? 'line-through' : 'none' }"
-          >
-            {{ t.text }}
-          </ion-label>
-          <ion-button
-            slot="end"
-            color="danger"
-            fill="outline"
-            size="small"
-            @click="removeTodo(t.id)"
-          >
-            Delete
-          </ion-button>
-        </ion-item>
+        <!-- List of tasks with drag-to-reorder -->
+        <ion-reorder-group :disabled="false" @ionItemReorder="doReorder">
+          <ion-item v-for="t in todos" :key="t.id">
+            <ion-checkbox
+              slot="start"
+              v-model="t.done"
+              @ionChange="toggleDone(t)"
+            ></ion-checkbox>
+            <ion-label
+              :style="{ textDecoration: t.done ? 'line-through' : 'none' }"
+            >
+              {{ t.text }}
+            </ion-label>
+
+            <!-- drag handle -->
+            <ion-reorder slot="end"></ion-reorder>
+
+            <!-- delete button -->
+            <ion-button
+              slot="end"
+              color="danger"
+              fill="outline"
+              size="small"
+              @click="removeTodo(t.id)"
+            >
+              Delete
+            </ion-button>
+          </ion-item>
+        </ion-reorder-group>
       </ion-list>
 
       <!-- Empty state -->
@@ -70,7 +85,12 @@ import {
   IonLabel,
   IonCheckbox,
   IonBadge,
+  IonRefresher,
+  IonRefresherContent,
+  IonReorderGroup,
+  IonReorder,
 } from "@ionic/vue";
+import type { ItemReorderEventDetail } from "@ionic/core";
 import { ref, onMounted, watch, computed } from "vue";
 const STORAGE_KEY = "todos.v1";
 const remaining = computed(() => todos.value.filter((t) => !t.done).length);
@@ -100,6 +120,22 @@ function toggleDone(t: Todo) {
 
 function removeTodo(id: string) {
   todos.value = todos.value.filter((t) => t.id !== id);
+}
+
+function doReorder(ev: CustomEvent<ItemReorderEventDetail>) {
+  const from = ev.detail.from;
+  const to = ev.detail.to;
+  const moved = todos.value.splice(from, 1)[0];
+  todos.value.splice(to, 0, moved);
+  ev.detail.complete(); // tell Ionic we’re done
+}
+
+function refreshTodos(ev: CustomEvent) {
+  // reload from storage
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) todos.value = JSON.parse(raw);
+  // complete refresher after short delay
+  setTimeout(() => ev.target?.complete(), 500);
 }
 
 onMounted(() => {
